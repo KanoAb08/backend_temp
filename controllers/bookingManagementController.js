@@ -1,51 +1,54 @@
-import TravelRequest from '../models/TravelRequest.js';
+import mongoose from 'mongoose';
+import TravelRequest from '../models/travelRequest.model.js';
 
-// Booking management for Admin: View only pending requests
-export const pendingRequests = async (req, res) => {
+// Accept or Reject a Travel Request
+export const changeRequestStatus = async (req, res) => {
+  const { requestId, status } = req.body; // Status can be 'Approved' or 'Rejected'
+
+  // Validate `status` input
+  if (!['Approved', 'Rejected'].includes(status)) {
+    return res.status(400).json({ message: 'Invalid status. Must be "Approved" or "Rejected".' });
+  }
+
+  // Validate `requestId` format (prevents MongoDB errors)
+  if (!mongoose.Types.ObjectId.isValid(requestId)) {
+    return res.status(400).json({ message: 'Invalid request ID format' });
+  }
+
   try {
-    // Fetch all pending travel requests (admin view)
-    const pendingRequests = await TravelRequest.find({ status: 'Pending' });
+    // Find the travel request using index
+    const request = await TravelRequest.findOne({ _id: requestId, status: 'Pending' });
+
+    if (!request) {
+      return res.status(404).json({ message: 'Pending travel request not found or already processed' });
+    }
+
+    // Update the status
+    request.status = status;
+    await request.save();
 
     res.json({
-      message: 'All pending travel requests fetched successfully',
-      requests: pendingRequests,
+      message: `Travel request has been ${status}`,
+      request,
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
-// Accept or Reject a Travel Request
-export const changeRequestStatus = async (req, res) => {
-  const { requestId, status } = req.body;  // Status can be 'Approved' or 'Rejected'
-
-  // Validate the status value
-  if (!['Approved', 'Rejected'].includes(status)) {
-    return res.status(400).json({ message: 'Invalid status. Must be "Approved" or "Rejected".' });
-  }
-
+// Fetch all pending travel requests (Admin View)
+export const pendingRequests = async (req, res) => {
   try {
-    // Find the travel request by its ID
-    const request = await TravelRequest.findById(requestId);
+    // Fetch pending requests efficiently using index
+    const pendingRequests = await TravelRequest.find({ status: 'Pending' }).sort({ createdAt: -1 });
 
-    if (!request) {
-      return res.status(404).json({ message: 'Travel request not found' });
+    if (pendingRequests.length === 0) {
+      return res.status(404).json({ message: 'No pending travel requests found' });
     }
-
-    // Ensure the request is in "Pending" status before updating
-    if (request.status !== 'Pending') {
-      return res.status(400).json({ message: 'Request is already processed (either accepted or rejected)' });
-    }
-
-    // Update the request status to 'Approved' or 'Rejected'
-    request.status = status;
-
-    // Save the updated request
-    await request.save();
 
     res.json({
-      message: `Travel request status updated to ${status}`,
-      request: request,
+      message: 'All pending travel requests fetched successfully',
+      requests: pendingRequests,
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });

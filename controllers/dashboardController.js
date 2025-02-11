@@ -1,55 +1,48 @@
-import TravelRequest from '../models/TravelRequest.js';
+import TravelRequest from '../models/travelRequest.model.js';
 
+// Get Dashboard Data (Admin Only)
 export const getDashboardData = async (req, res) => {
   try {
-    // Total expense for accepted requests (for all users)
-    const totalExpense = await TravelRequest.aggregate([
+    // Aggregate total expenses for approved requests
+    const totalExpenseResult = await TravelRequest.aggregate([
       { $match: { status: 'Approved' } },
-      { $group: { _id: null, total: { $sum: '$expense' } } }
+      { $group: { _id: null, total: { $sum: '$expense' } } },
+    ]);
+    const totalExpense = totalExpenseResult.length > 0 ? totalExpenseResult[0].total : 0;
+
+    // Use indexed queries for counting documents
+    const [totalRequests, totalAcceptedRequests, totalPendingRequests] = await Promise.all([
+      TravelRequest.countDocuments(),
+      TravelRequest.countDocuments({ status: 'Approved' }),
+      TravelRequest.countDocuments({ status: 'Pending' }),
     ]);
 
-    // Total number of requests made (for all users)
-    const totalRequests = await TravelRequest.countDocuments();
-
-    // Total accepted requests (for all users)
-    const totalAcceptedRequests = await TravelRequest.countDocuments({
-      status: 'Approved'
-    });
-
-    // Total pending requests (for all users)
-    const totalPendingRequests = await TravelRequest.countDocuments({
-      status: 'Pending'
-    });
-
     res.json({
-      totalExpense: totalExpense.length > 0 ? totalExpense[0].total : 0,  // If no accepted requests, set expense to 0
+      totalExpense,
       totalRequests,
       totalAcceptedRequests,
       totalPendingRequests,
     });
   } catch (error) {
+    console.error('Error fetching dashboard data:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
+// Get All Travel Requests (Admin Only)
 export const getAllTravelRequests = async (req, res) => {
   try {
-    // Retrieve all travel requests from all users
-    const requests = await TravelRequest.find();
+    // Fetch all travel requests with projections to optimize query
+    const requests = await TravelRequest.find({}, 'user userName destination startDate endDate status expenseType expense')
+      .sort({ createdAt: -1 });
 
-    // If no requests are found, return a message
-    if (requests.length === 0) {
+    if (!requests.length) {
       return res.status(404).json({ message: 'No travel requests found' });
     }
 
-    // Return the travel requests
     res.json(requests);
   } catch (error) {
-    // Log the error for debugging purposes
     console.error('Error fetching travel requests:', error);
-    
-    // Return a server error response
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
-

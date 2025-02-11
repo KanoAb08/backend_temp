@@ -1,10 +1,10 @@
 import express from 'express';
-import { createTravelRequest, getTravelRequestStatus } from '../controllers/travelRequestController.js';
-import authMiddleware from '../middleware/authMiddleware.js';
+import { createTravelRequest, getHistory } from '../controllers/travelRequestController.js';
+import { protect } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
 
-router.post('/', authMiddleware, createTravelRequest); // Protect route with authMiddleware
-router.get('/', authMiddleware, getTravelRequestStatus); // Protect route with authMiddleware
+router.post('/', protect, createTravelRequest); // Protect route with authMiddleware
+router.get('/', protect, getHistory); // Protect route with authMiddleware
 
 export default router;
